@@ -29,11 +29,16 @@ bool str_equal(char *s1, char *s2)
 		return false;
 }
 
+bool str_diff(char *s1, char *s2)
+{
+	return !str_equal(s1, s2);
+}
+
 void fatal_error()
 {
 	const char *msg ="error: fatal\n";
 
-	write(STDERR_FILENO, msg, sizeof(msg));
+	write(STDERR_FILENO, msg, sizeof(msg) - 1);
 }
 
 void fatal_error_exit()
@@ -87,12 +92,12 @@ int exec_cd(char **cmds)
 
 	if ( is_delim(cmds[1]) || !is_delim(cmds[2]) )
 	{
-		write(STDERR_FILENO, bad_args, sizeof(bad_args));
+		write(STDERR_FILENO, bad_args, sizeof(bad_args) - 1);
 		return (1);
 	}
 	else if (chdir(cmds[1]))
 	{
-		write(STDERR_FILENO, cannot, sizeof(cannot));
+		write(STDERR_FILENO, cannot, sizeof(cannot) - 1);
 		write(STDERR_FILENO, cmds[1], get_len(cmds[1]));
 		write(STDERR_FILENO, "\n", 1);
 		return (1);
@@ -134,7 +139,7 @@ int exec_pipeline(char **cmds, char **envp)
 
 		IPIPE_RD = OPIPE_RD;
 
-		if ( dup2(IPIPE_RD, STDIN_FILENO) == -1) // Now 0 points to our input pipe's read end
+		if ( dup2(IPIPE_RD, STDIN_FILENO) == -1 ) // Now 0 points to our input pipe's read end
 			fatal_error_exit();
 		close(IPIPE_RD);
 
@@ -142,7 +147,7 @@ int exec_pipeline(char **cmds, char **envp)
 		if ( pipe(pipe_fds) == -1 )
 			fatal_error_exit();
 
-		if ( dup2(OPIPE_WR, STDOUT_FILENO ) == -1) // Now 1 points to our output pipe's write end
+		if ( dup2(OPIPE_WR, STDOUT_FILENO ) == -1 ) // Now 1 points to our output pipe's write end
 			fatal_error_exit();
 		close(OPIPE_WR);
 
@@ -150,10 +155,8 @@ int exec_pipeline(char **cmds, char **envp)
 		simple_cmd = get_next_simple_command(&cmds);
 		if ( simple_cmd == cmds ) // End of pipeline special case
 		{
-			close(OPIPE_RD);
 			if ( dup2(tty_out, STDOUT_FILENO) == -1 ) // End of pipeline, 1 must point back to our tty,
 				fatal_error_exit();
-			close(tty_out);
 			done = true;
 		}
 
@@ -175,24 +178,32 @@ int exec_pipeline(char **cmds, char **envp)
 		}
 	}
 
+	close(OPIPE_RD);
+	close(tty_out);
+
 	if ( dup2(tty_in, STDIN_FILENO) == -1 ) //Cleaning up : Have 0 point back to our tty
 		fatal_error();
 	close(tty_in);
 
 	while (--waits)
-		waitpid(-1, NULL, 0);
-	waitpid(-1, &wstatus, 0);
+		waitpid(0, NULL, 0); //Should I use the -1 or 0 flag ?
+	waitpid(0, &wstatus, 0);
 	return (WEXITSTATUS(wstatus));
 }
 
 int main( int ac, char **av, char **envp )
 {
-	--ac;
+	(void)ac;
 	++av;
+	bool is_pipeline;
 
-	for ( int i = 0 ; /*loop forever*/ ; av += i + 1, i = 0)
+	for ( int i = 0 ; av[i] != NULL ; av += i + 1, i = 0)
 	{
-		bool is_pipeline = false;
+
+		if ( str_equal(av[0], ";") )
+			continue;
+
+		is_pipeline = false;
 
 		for ( ; av[i] != NULL && !str_equal(av[i], ";") ; ++i)
 		{
