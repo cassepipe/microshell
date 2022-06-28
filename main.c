@@ -69,12 +69,23 @@ char **get_next_simple_command(char ***cmds)
 	return (simple_cmd);
 }
 
+bool is_delim(char *token)
+{
+	if ( token == NULL )
+		return true;
+	if ( str_equal(token, ";") )
+		return true;
+	if ( str_equal(token, "|") )
+		return true;
+	return false;
+}
+
 int exec_cd(char **cmds)
 {
 	const char bad_args[] = "error: cd: bad arguments\n";
 	const char cannot[]   = "error: cd: cannot change directory to ";
 
-	if ( cmds[2] != NULL || !str_equal(cmds[2], ";") )
+	if ( is_delim(cmds[1]) || !is_delim(cmds[2]) )
 	{
 		write(STDERR_FILENO, bad_args, sizeof(bad_args));
 		return (1);
@@ -87,7 +98,12 @@ int exec_cd(char **cmds)
 		return (1);
 	}
 	else
-		return  (0);
+	{
+		char buf[100];
+		getcwd(buf, 100);
+		dprintf(2, "Hello from %s\n", buf);
+		return (0);
+	}
 }
 
 #define OPIPE_RD pipe_fds[0]
@@ -180,7 +196,8 @@ int main( int ac, char **av, char **envp )
 
 		for ( ; av[i] != NULL && !str_equal(av[i], ";") ; ++i)
 		{
-			is_pipeline =  str_equal(av[i], "|");
+			if ( str_equal(av[i], "|"))
+				is_pipeline = true;
 		}
 
 		if ( (av[i] == NULL) || ( str_equal(av[i], ";") && av[i + 1] == NULL ) )
